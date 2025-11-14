@@ -1,0 +1,16 @@
+# paddlepaddle-gpu
+paddlepaddle
+paddleocr
+dataset
+arrow
+click
+chardet
+jieba
+scikit-learn
+opencv-python
+pyautogui
+redis
+celery
+pyyaml
+numpy
+eventlet

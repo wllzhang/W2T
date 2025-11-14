@@ -1,0 +1,18 @@
+queue:  
+  broker_url: "redis://:ZWL123%21%40%23.@101.43.136.162:6379/0"
+  result_backend: "redis://:ZWL123%21%40%23.@101.43.136.162:6379/1"
+
+  default_routing_key: "w2t.capture"
+  task_timeout_seconds: 10.0
+
+capture:
+  min_interval_ms: 10
+  enable_foreground_check: true
+
+ocr:
+  channels:
+    - paddle_local
+    - paddle_remote
+    - tencent
+  timeout_seconds: 5.0
+
