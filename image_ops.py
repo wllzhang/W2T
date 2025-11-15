@@ -14,10 +14,10 @@ import base64
 import io
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Iterable, Tuple, Union
+from typing import Iterable, Optional, Tuple, Union
 
 import numpy as np
-from PIL import Image, ImageFile
+from PIL import Image, ImageFile, UnidentifiedImageError
 
 ImageSource = Union[str, Path, np.ndarray, Image.Image, ImageFile.ImageFile]
 
@@ -50,9 +50,22 @@ def image_to_bytes(image: Image.Image, fmt: str = "JPEG") -> bytes:
         image.save(buffer, format=fmt)
         return buffer.getvalue()
 
+ 
 
-def bytes_to_base64(data: bytes) -> str:
-    return base64.b64encode(data).decode("utf-8")
+
+def encode_capture_payload(source: ImageSource, fmt: str = "PNG") -> bytes:
+    image = load_image(source)
+    return image_to_bytes(image, fmt=fmt)
+
+
+def decode_capture_payload(payload: bytes) -> Optional[np.ndarray]:
+    with io.BytesIO(payload) as buffer:
+        try:
+            with Image.open(buffer) as img:
+                rgb = img.convert("RGB")
+        except (UnidentifiedImageError, OSError):
+            return None
+    return np.array(rgb)
 
 
 def white_ratio(image: Image.Image, threshold: int = 200) -> float:
@@ -72,7 +85,5 @@ class RegionPreset:
     y_range: Tuple[float, float]
 
 
-def crop_and_encode(image: Image.Image, preset: RegionPreset) -> str:
-    cropped = crop_fraction(image, preset.x_range, preset.y_range)
-    return bytes_to_base64(image_to_bytes(cropped))
+ 
 

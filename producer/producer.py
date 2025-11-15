@@ -8,8 +8,6 @@ Producer 端启动脚本，仅保留三个核心类：
 from __future__ import annotations
 
 import time
-from typing import Tuple
-
 import click
 import cv2
 
@@ -17,7 +15,6 @@ from settings import settings
 from consumer.worker import handle_capture_task
 from executors.executor import ActionExecutor
 from producer.screen_capture import ScreenCapture, select_bbox
-
 
 class ProducerApp:
     def __init__(
@@ -32,14 +29,14 @@ class ProducerApp:
 
     def run_forever(self, interval_ms: int = 500) -> None:
         interval = max(interval_ms, 100) / 1000.0
+
         while True:
             self.run_once()
             time.sleep(interval)
-            break
 
     def run_once(self) -> None:
-        frame_b64 = self.screen_capture.capture()
-        async_result = self.celery_task.delay(frame_b64)
+        frame_payload = self.screen_capture.capture()
+        async_result = self.celery_task.delay(frame_payload)
         result = async_result.get(timeout=settings.queue.task_timeout_seconds)
         print(result)
         # self.action_executor.run(actions)

@@ -13,7 +13,7 @@ import pyautogui
 import tkinter as tk
 from PIL import ImageTk
 
-from image_ops import bytes_to_base64, image_to_bytes
+from image_ops import encode_capture_payload
 from settings import settings
 
 
@@ -82,9 +82,7 @@ class ScreenCapture:
         height = bottom - top
         screenshot = pyautogui.screenshot(region=(left, top, width, height))
         self.last_array = np.array(screenshot)
-        image_bytes = image_to_bytes(screenshot)
-        frame_b64 = bytes_to_base64(image_bytes)
-        return  frame_b64
+        return encode_capture_payload(screenshot, fmt="PNG")
        
 
     def normalize(self, x: int, y: int) -> Tuple[float, float]:

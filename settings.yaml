@@ -3,10 +3,10 @@ queue:
   result_backend: "redis://:ZWL123%21%40%23.@101.43.136.162:6379/1"
 
   default_routing_key: "w2t.capture"
-  task_timeout_seconds: 10.0
+  task_timeout_seconds: 100.0
 
 capture:
-  min_interval_ms: 10
+  min_interval_ms: 1000
   enable_foreground_check: true
 
 ocr:
