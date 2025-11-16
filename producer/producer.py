@@ -36,10 +36,14 @@ class ProducerApp:
 
     def run_once(self) -> None:
         frame_payload = self.screen_capture.capture()
-        async_result = self.celery_task.delay(frame_payload)
-        result = async_result.get(timeout=settings.queue.task_timeout_seconds)
-        print(result)
-        # self.action_executor.run(actions)
+        # async_result = self.celery_task.delay(frame_payload)
+        # result = async_result.get(timeout=settings.queue.task_timeout_seconds)
+        actions =  [
+            {"action": "move_to", "position": [0.8, 0.5]},
+            {"action": "delay", "seconds": 1},
+            {"action": "click"}
+        ]
+        self.action_executor.compose( actions )
         self._show_preview()
 
     def _show_preview(self) -> None:

@@ -34,15 +34,6 @@ def load_image(source: ImageSource) -> Image.Image:
     raise TypeError(f"Unsupported image source: {type(source)}")
 
 
-def crop_fraction(
-    image: Image.Image,
-    x_range: Tuple[float, float],
-    y_range: Tuple[float, float],
-) -> Image.Image:
-    width, height = image.size
-    start_x, end_x = int(width * x_range[0]), int(width * x_range[1])
-    start_y, end_y = int(height * y_range[0]), int(height * y_range[1])
-    return image.crop((start_x, start_y, end_x, end_y))
 
 
 def image_to_bytes(image: Image.Image, fmt: str = "JPEG") -> bytes:
@@ -68,22 +59,7 @@ def decode_capture_payload(payload: bytes) -> Optional[np.ndarray]:
     return np.array(rgb)
 
 
-def white_ratio(image: Image.Image, threshold: int = 200) -> float:
-    gray = image.convert("L")
-    arr = np.array(gray)
-    white_pixels = np.sum(arr >= threshold)
-    total_pixels = arr.size
-    return white_pixels / float(total_pixels or 1)
-
-
-@dataclass(frozen=True)
-class RegionPreset:
-    """窗口中常用区域配置。"""
-
-    name: str
-    x_range: Tuple[float, float]
-    y_range: Tuple[float, float]
-
+ 
 
  
 

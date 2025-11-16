@@ -3,18 +3,13 @@
 """
 
 from __future__ import annotations
-
-import time
-import uuid
 from typing import Optional, Tuple
-
 import numpy as np
 import pyautogui
 import tkinter as tk
 from PIL import ImageTk
 
 from image_ops import encode_capture_payload
-from settings import settings
 
 
 def select_bbox() -> Tuple[int, int, int, int]:
@@ -75,7 +70,7 @@ class ScreenCapture:
     def __init__(self, bbox: Tuple[int, int, int, int]) -> None:
         self.bbox = bbox  # (left, top, right, bottom)
         self.last_array: Optional[np.ndarray] = None
-
+        
     def capture(self):
         left, top, right, bottom = self.bbox
         width = right - left
