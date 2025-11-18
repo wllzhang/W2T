@@ -9,8 +9,6 @@ import pyautogui
 import tkinter as tk
 from PIL import ImageTk
 
-from image_ops import encode_capture_payload
-
 
 def select_bbox() -> Tuple[int, int, int, int]:
     screenshot = pyautogui.screenshot()
@@ -71,13 +69,12 @@ class ScreenCapture:
         self.bbox = bbox  # (left, top, right, bottom)
         self.last_array: Optional[np.ndarray] = None
         
-    def capture(self):
+    def capture(self) -> None:
         left, top, right, bottom = self.bbox
         width = right - left
         height = bottom - top
         screenshot = pyautogui.screenshot(region=(left, top, width, height))
         self.last_array = np.array(screenshot)
-        return encode_capture_payload(screenshot, fmt="PNG")
        
 
     def normalize(self, x: int, y: int) -> Tuple[float, float]:
@@ -91,4 +88,5 @@ class ScreenCapture:
         width = right - left
         height = bottom - top
         return int(left + nx * width), int(top + ny * height)
+
 

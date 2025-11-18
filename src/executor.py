@@ -4,13 +4,19 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
+# 添加项目根目录到路径
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 import time
 
 import pyautogui
 
 from typing import Any, Dict, List, Optional
 
-from producer.screen_capture import ScreenCapture,select_bbox
+from src.screen_capture import ScreenCapture, select_bbox
 import tkinter as tk
 from PIL import Image, ImageTk
 
@@ -128,11 +134,10 @@ class ActionExecutor:
         self.compose(demo_actions)
 
      
- 
 
  
 
 if __name__ == "__main__":
     executor = ActionExecutor(ScreenCapture(select_bbox()))
     executor.run_demo()
- 
+
