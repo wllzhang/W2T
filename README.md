@@ -209,21 +209,31 @@ W2T/
 4. **配置文件**：
    - Redis 密码中的特殊字符需要进行 URL 编码（如 `@` → `%40`，`#` → `%23`）
 
-## 常见问题
 
-### Q: Celery worker 无法连接 Redis？
 
-A: 检查 `settings.yaml` 中的 Redis 配置，确保密码已正确 URL 编码。
+# 预测单张图片
+python -m src.deep_classifier predict results/1.jpg
 
-### Q: 截图很卡？
+# 预测目录中的所有图片
+python -m src.deep_classifier predict results/
 
-A: 可以调整 `settings.yaml` 中的 `min_interval_ms` 增加截图间隔。
+# 预测其他目录的图片
+python -m src.deep_classifier predict path/to/your/images/
 
-### Q: OCR 识别速度慢？
+```python
+from src.deep_classifier import load_trained_model, predict_single_image, predict_images_from_dir
+import torch
 
-A: 使用 Celery 模式可以并行处理多张图片，显著提升速度。
+# 加载模型
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = load_trained_model("results/classifier_model.pth", device)
 
-## License
+# 预测单张图片
+pred_class, confidence, class_name = predict_single_image(model, "new_image.jpg", device)
+print(f"预测类别: {class_name}, 置信度: {confidence:.4f}")
 
-MIT
-
+# 预测目录中的所有图片
+results = predict_images_from_dir(model, "path/to/images/", device)
+for filename, pred_class, confidence, class_name in results:
+    print(f"{filename}: {class_name}, 置信度={confidence:.4f}")
+```

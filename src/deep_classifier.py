@@ -456,8 +456,152 @@ def visualize_predictions(results: List[Tuple[str, int, float]],
                                 target_names=['类别0(其他)', '类别1(10和21)']))
 
 
+def load_trained_model(model_path: str | Path = "results/classifier_model.pth", 
+                       device: Optional[torch.device] = None) -> nn.Module:
+    """
+    加载已训练的模型。
+    
+    Args:
+        model_path: 模型文件路径
+        device: 设备（CPU或GPU），如果为None则自动选择
+    
+    Returns:
+        加载好的模型
+    """
+    if not TORCH_AVAILABLE:
+        raise ImportError("此功能需要安装 PyTorch: pip install torch torchvision")
+    
+    model_path = Path(model_path)
+    if not model_path.exists():
+        raise FileNotFoundError(f"模型文件不存在: {model_path}")
+    
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    print(f"从 {model_path} 加载模型...")
+    print(f"使用设备: {device}")
+    
+    # 创建模型结构
+    model = SimpleCNN(num_classes=2)
+    
+    # 加载模型权重
+    model.load_state_dict(torch.load(model_path, map_location=device))
+    model.to(device)
+    model.eval()
+    
+    print("模型加载完成！")
+    return model
+
+
+def predict_single_image(model: nn.Module, 
+                        image_path: str | Path,
+                        device: Optional[torch.device] = None) -> Tuple[int, float, str]:
+    """
+    预测单张图片的类别。
+    
+    Args:
+        model: 训练好的模型
+        image_path: 图片文件路径
+        device: 设备（CPU或GPU），如果为None则自动选择
+    
+    Returns:
+        (预测类别, 置信度, 类别名称)
+    """
+    if device is None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    
+    image_path = Path(image_path)
+    if not image_path.exists():
+        raise FileNotFoundError(f"图片文件不存在: {image_path}")
+    
+    # 读取图片
+    img = cv2.imread(str(image_path))
+    if img is None:
+        raise ValueError(f"无法读取图片: {image_path}")
+    
+    # 统一尺寸
+    img = cv2.resize(img, (256, 256))
+    
+    # 转换为RGB
+    if len(img.shape) == 2:
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_GRAY2RGB)
+    elif img.shape[2] == 4:
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGRA2RGB)
+    else:
+        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+    
+    # 预处理
+    transform = transforms.Compose([
+        transforms.Resize((256, 256)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+    ])
+    
+    from PIL import Image
+    img_pil = Image.fromarray(img_rgb)
+    img_tensor = transform(img_pil).unsqueeze(0).to(device)
+    
+    # 预测
+    model.eval()
+    with torch.no_grad():
+        output = model(img_tensor)
+        probabilities = torch.softmax(output, dim=1)
+        predicted_class = torch.argmax(probabilities, dim=1).item()
+        confidence = probabilities[0][predicted_class].item()
+    
+    class_name = "类别1(10和21)" if predicted_class == 1 else "类别0(其他)"
+    
+    return predicted_class, confidence, class_name
+
+
+def predict_images_from_dir(model: nn.Module,
+                           image_dir: str | Path,
+                           device: Optional[torch.device] = None) -> List[Tuple[str, int, float, str]]:
+    """
+    预测目录中所有图片的类别。
+    
+    Args:
+        model: 训练好的模型
+        image_dir: 图片目录路径
+        device: 设备（CPU或GPU），如果为None则自动选择
+    
+    Returns:
+        [(文件名, 预测类别, 置信度, 类别名称), ...]
+    """
+    image_dir = Path(image_dir)
+    if not image_dir.exists():
+        raise FileNotFoundError(f"目录不存在: {image_dir}")
+    
+    # 获取所有图片文件
+    image_files = sorted(
+        [f for f in os.listdir(image_dir) if f.lower().endswith((".jpg", ".jpeg", ".png"))],
+        key=extract_number
+    )
+    
+    if not image_files:
+        print(f"目录中没有找到图片文件")
+        return []
+    
+    print(f"找到 {len(image_files)} 张图片，开始预测...")
+    
+    results = []
+    for img_file in image_files:
+        try:
+            img_path = image_dir / img_file
+            pred_class, confidence, class_name = predict_single_image(model, img_path, device)
+            results.append((img_file, pred_class, confidence, class_name))
+            print(f"  {img_file}: {class_name}, 置信度={confidence:.4f}")
+        except Exception as e:
+            print(f"  警告: 预测 {img_file} 时出错: {e}")
+            continue
+    
+    return results
+
+
 def main():
     """主函数"""
+    import sys
+    
     if not TORCH_AVAILABLE:
         print("错误: 需要安装 PyTorch")
         print("请运行: pip install torch torchvision")
@@ -468,12 +612,100 @@ def main():
         print("请运行: pip install scikit-learn")
         return
     
+    # 检查命令行参数
+    if len(sys.argv) > 1:
+        command = sys.argv[1]
+        
+        if command == "predict":
+            # 预测模式
+            if len(sys.argv) < 3:
+                print("使用方法: python deep_classifier.py predict <图片路径或目录>")
+                print("示例:")
+                print("  python deep_classifier.py predict results/1.jpg")
+                print("  python deep_classifier.py predict results/")
+                return
+            
+            target_path = Path(sys.argv[2])
+            model_path = Path("results") / "classifier_model.pth"
+            
+            if not model_path.exists():
+                print(f"错误: 模型文件不存在: {model_path}")
+                print("请先运行训练: python deep_classifier.py train")
+                return
+            
+            # 加载模型
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            model = load_trained_model(model_path, device)
+            
+            # 预测
+            if target_path.is_file():
+                # 单张图片
+                print(f"\n预测图片: {target_path}")
+                pred_class, confidence, class_name = predict_single_image(model, target_path, device)
+                print(f"\n预测结果:")
+                print(f"  类别: {class_name}")
+                print(f"  置信度: {confidence:.4f}")
+            elif target_path.is_dir():
+                # 目录中的所有图片
+                print(f"\n预测目录: {target_path}")
+                results = predict_images_from_dir(model, target_path, device)
+                
+                # 统计结果
+                class0_count = sum(1 for _, pred, _, _ in results if pred == 0)
+                class1_count = sum(1 for _, pred, _, _ in results if pred == 1)
+                
+                print(f"\n预测结果统计:")
+                print(f"  类别0(其他): {class0_count} 张")
+                print(f"  类别1(10和21): {class1_count} 张")
+            else:
+                print(f"错误: 路径不存在: {target_path}")
+            return
+        
+        elif command == "train":
+            # 训练模式
+            print("=" * 60)
+            print("基于深度学习的图片分类 - 训练模式")
+            print("=" * 60)
+            print("分类规则:")
+            print("  - 类别1: 图片10和21")
+            print("  - 类别0: 其他所有图片")
+            print("=" * 60)
+            
+            # 1. 加载数据
+            images, labels, filenames = load_images_and_labels("results")
+            
+            if len(images) < 4:
+                print("错误: 图片数量太少，无法训练")
+                return
+            
+            # 2. 训练模型
+            device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+            model = train_model(images, labels, epochs=50, batch_size=4, learning_rate=0.001)
+            
+            # 3. 对所有图片进行预测
+            print("\n对所有图片进行预测...")
+            results = predict_all_images(model, images, filenames, device)
+            
+            # 4. 可视化结果
+            visualize_predictions(results, labels, filenames)
+            
+            # 5. 保存模型
+            model_path = Path("results") / "classifier_model.pth"
+            torch.save(model.state_dict(), model_path)
+            print(f"\n模型已保存到: {model_path}")
+            return
+    
+    # 默认：训练模式
     print("=" * 60)
     print("基于深度学习的图片分类")
     print("=" * 60)
     print("分类规则:")
     print("  - 类别1: 图片10和21")
     print("  - 类别0: 其他所有图片")
+    print("=" * 60)
+    print("\n使用方法:")
+    print("  训练模型: python deep_classifier.py train")
+    print("  预测图片: python deep_classifier.py predict <图片路径或目录>")
     print("=" * 60)
     
     # 1. 加载数据
