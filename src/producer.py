@@ -67,7 +67,7 @@ class ProducerApp:
         self.action_executor.compose(actions)
         
         # 4. 显示预览
-        self._show_preview()
+        # self._show_preview()
     
     def _show_preview(self) -> None:
         frame = self.screen_capture.last_array

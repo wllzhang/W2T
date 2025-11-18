@@ -14,3 +14,7 @@ celery
 pyyaml
 numpy
 eventlet
+matplotlib
+torch
+torchvision
+pillow
