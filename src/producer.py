@@ -7,53 +7,52 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-
 import yaml
-
 import time
 import threading
-
 import click
 import cv2
-
+import torch
+import os
 # 读取配置文件
 _config_path = Path(__file__).parent.parent / "settings.yaml"
 _config = yaml.safe_load(_config_path.read_text(encoding="utf-8")) or {}
 _settings = SimpleNamespace(**{k: SimpleNamespace(**v) if isinstance(v, dict) else v for k, v in _config.items()})
 from src.executor import ActionExecutor
 from src.screen_capture import ScreenCapture, select_bbox
+from src.deep_classifier import load_trained_model, predict_single_image, predict_images_from_dir
 
 class ProducerApp:
     def __init__(
         self,
         screen_capture: ScreenCapture,
         action_executor: ActionExecutor,
-        save_dir: str | Path | None = None,
+        save_dir: str | Path ,
     ) -> None:
         self.screen_capture = screen_capture
         self.action_executor = action_executor
-        self.save_dir = Path(save_dir or "results")
-        self.save_dir.mkdir(parents=True, exist_ok=True)
+        self.save_dir = Path(save_dir) if isinstance(save_dir, str) else save_dir
+        os.makedirs(self.save_dir, exist_ok=True)
         self.image_counter = 0
         self.counter_lock = threading.Lock()
 
     def run_forever(self, interval_ms: int = 500) -> None:
-        interval = max(interval_ms, 100) / 1000.0
-
+        interval = interval_ms / 1000.0
+        
+        
+        
         while True:
-            self.run_once()
+            with self.counter_lock:
+                self.image_counter += 1
+                image_num = self.image_counter
+            image_path = self.save_dir / f"{image_num}.jpg"
+            self.run_once(image_path)
+            if self.stop(image_path):
+                break
             time.sleep(interval)
 
-    def run_once(self) -> None:
-        # 1. 截图
+    def run_once(self,image_path: str | Path) -> None:
         self.screen_capture.capture()
-        
-        # 2. 保存截图（从1开始递增命名）
-        with self.counter_lock:
-            self.image_counter += 1
-            image_num = self.image_counter
-        
-        image_path = self.save_dir / f"{image_num}.jpg"
         if self.screen_capture.last_array is not None:
             cv2.imwrite(str(image_path), cv2.cvtColor(self.screen_capture.last_array, cv2.COLOR_RGB2BGR))
             click.echo(f"截图已保存: {image_path}")
@@ -75,7 +74,20 @@ class ProducerApp:
             return
         cv2.imshow("Capture Preview", frame)
         cv2.waitKey(1)
-
+        
+    def stop(self,image_path: str | Path) -> None:
+        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        model = load_trained_model("results/classifier_model.pth", device)
+        # 预测单张图片
+        pred_class, confidence, class_name = predict_single_image(model,image_path, device)
+        if pred_class == 1:
+            is_stop = input("是否停止? (y/n): ")
+            if is_stop == "y":
+                return True
+            else:
+                return False
+        else:
+            return False
 
 @click.command()
 def main() -> None:

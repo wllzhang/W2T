@@ -173,7 +173,7 @@ def load_images_and_labels(results_dir: str | Path = "results") -> Tuple[List[np
         
         # 根据文件名确定标签
         img_num = extract_number(img_file)
-        if img_num in [10, 21]:
+        if img_num in [13,24,35,45,55,66,77,87,98,109,120]:
             labels.append(1)  # 一类（10和21）
             print(f"  {img_file}: 标签=1 (类别1)")
         else:
@@ -478,8 +478,8 @@ def load_trained_model(model_path: str | Path = "results/classifier_model.pth",
     if device is None:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     
-    print(f"从 {model_path} 加载模型...")
-    print(f"使用设备: {device}")
+    # print(f"从 {model_path} 加载模型...")
+    # print(f"使用设备: {device}")
     
     # 创建模型结构
     model = SimpleCNN(num_classes=2)
@@ -489,7 +489,7 @@ def load_trained_model(model_path: str | Path = "results/classifier_model.pth",
     model.to(device)
     model.eval()
     
-    print("模型加载完成！")
+    # print("模型加载完成！")
     return model
 
 
@@ -672,7 +672,7 @@ def main():
             print("=" * 60)
             
             # 1. 加载数据
-            images, labels, filenames = load_images_and_labels("results")
+            images, labels, filenames = load_images_and_labels("results/train")
             
             if len(images) < 4:
                 print("错误: 图片数量太少，无法训练")

@@ -6,7 +6,7 @@ queue:
   task_timeout_seconds: 100.0
 
 capture:
-  min_interval_ms: 500
+  min_interval_ms: 100
   enable_foreground_check: true
 
 ocr:

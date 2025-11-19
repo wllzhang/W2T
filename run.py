@@ -5,6 +5,8 @@
 from __future__ import annotations
 
 import sys
+import time
+import atexit
 from pathlib import Path
 from typing import List, Sequence
 from types import SimpleNamespace
@@ -75,6 +77,32 @@ def process_images_with_celery(image_dir: Path, celery_task) -> None:
         click.echo(f"已提交任务: {image_path.name}")
     
     click.echo("所有任务已提交，请等待 Celery worker 处理...")
+    
+    # 添加清理逻辑，避免退出时的 multiprocessing ResourceTracker 异常
+    def cleanup():
+        """清理 Celery 连接，避免退出时的异常"""
+        try:
+            # 通过任务对象访问 Celery 应用
+            celery_app = celery_task.app
+            # 关闭连接池和 broker 连接
+            if hasattr(celery_app, 'pool') and celery_app.pool:
+                try:
+                    celery_app.pool.close()
+                except Exception:
+                    pass
+            # 关闭 broker 连接
+            if hasattr(celery_app, 'broker_connection') and celery_app.broker_connection:
+                try:
+                    celery_app.broker_connection.close()
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    
+    # 注册退出时的清理函数
+    atexit.register(cleanup)
+    # 给连接一点时间完成，避免立即退出导致的资源清理问题
+    time.sleep(0.1)
 
 
 def process_images_direct(image_dir: Path, ocr: PaddleOCR) -> None:
@@ -115,7 +143,7 @@ def cli() -> None:
 
 
 @cli.command()
-@click.option("--dir", "-d", default="results", help="截图保存目录")
+@click.option("--dir", "-d", required=True, help="截图保存目录")
 def capture(dir: str) -> None:
     """开始截图，持续保存截图到指定目录"""
     try:
@@ -136,7 +164,7 @@ def capture(dir: str) -> None:
 
 
 @cli.command()
-@click.option("--dir", "-d", default="results", help="图片目录路径")
+@click.option("--dir", "-d",required=True, help="图片目录路径")
 @click.option("--celery", "-c", is_flag=True, help="使用 Celery 处理（需要启动 worker）")
 def process(dir: str, celery: bool) -> None:
     """处理截图目录中的图片，进行 OCR 识别"""
@@ -160,6 +188,32 @@ def process(dir: str, celery: bool) -> None:
             use_textline_orientation=False
         )
         process_images_direct(image_dir, ocr)
+
+
+@cli.command()
+@click.option("--dir", "-d" ,required=True, help="txt文件目录")
+def mergetxt(dir: str) -> None:
+    """合并目录中的所有 txt 文件内容到一个 merged.txt 文件"""
+    txt_dir = Path(dir)
+    if not txt_dir.exists():
+        click.echo(f"目录不存在: {txt_dir}", err=True)
+        sys.exit(1)
+    
+    # 1.获取当前目录下的所有txt文件（排除 merged.txt）
+    # 2.按文件名排序
+    # 3.读取文件内容
+    # 4.合并文件内容
+    # 5.保存合并后的内容到新的txt文件
+    txt_files = sorted(
+        Path(dir).glob("*.txt"),
+        key=lambda p: int(p.stem) if p.stem.isdigit()  else 0
+    )
+    with open(Path(dir) / "merged.txt", "w", encoding="utf-8") as m_f:
+        for txt_file in txt_files:
+            with open(txt_file, "r", encoding="utf-8") as t_f:
+                m_f.write(t_f.read())
+                m_f.write("\n")
+    click.echo(f"合并完成！结果已保存到: {Path(dir) / 'merged.txt'}")
 
 
 if __name__ == "__main__":

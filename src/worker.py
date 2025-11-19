@@ -105,11 +105,11 @@ def _default_worker_args() -> List[str]:
     return [
         "worker",
         "-l",
-        "debug",
+        "info",
         "-P",
         "eventlet",
         "-c",
-        "1",
+        "13",
     ]
 
 
