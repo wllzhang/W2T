@@ -18,8 +18,7 @@ import click
 import requests
 import aiohttp
 import cv2
-import numpy as np
-from paddleocr import PaddleOCR
+
 
 # 读取配置文件
 _config_path = Path(__file__).parent / "settings.yaml"
@@ -108,7 +107,7 @@ def process_images_with_celery(image_dir: Path, celery_task) -> None:
     time.sleep(0.1)
 
 
-def process_images_direct(image_dir: Path, ocr: PaddleOCR) -> None:
+def process_images_direct(image_dir: Path, ocr) -> None:
     """直接处理图片（不使用 Celery）"""
     image_files = sorted(
         image_dir.glob("*.jpg"),
@@ -116,27 +115,27 @@ def process_images_direct(image_dir: Path, ocr: PaddleOCR) -> None:
     )
     
     click.echo(f"找到 {len(image_files)} 张图片，开始处理...")
+    with click.progressbar(image_files, label="处理中...", show_percent=True) as bar:
+        for image_path in bar:
+            try:
+                image_num = int(image_path.stem)
+            except ValueError:
+                click.echo(f", 跳过无效文件名: {image_path}")
+                continue
+            
+            click.echo(f", 处理中: {image_path.name}...", nl=False)
+            
+            # 直接处理
+            ocr_text = process_image_direct(image_path, ocr)
+            
+            # 保存文本
+            text_file = image_dir / f"{image_num}.txt"
+            with open(text_file, "w", encoding="utf-8") as f:
+                f.write(ocr_text or "")
+            
+            click.echo(f", 完成 -> {text_file.name}")
     
-    for image_path in image_files:
-        try:
-            image_num = int(image_path.stem)
-        except ValueError:
-            click.echo(f"跳过无效文件名: {image_path}")
-            continue
-        
-        click.echo(f"处理中: {image_path.name}...", nl=False)
-        
-        # 直接处理
-        ocr_text = process_image_direct(image_path, ocr)
-        
-        # 保存文本
-        text_file = image_dir / f"{image_num}.txt"
-        with open(text_file, "w", encoding="utf-8") as f:
-            f.write(ocr_text or "")
-        
-        click.echo(f" 完成 -> {text_file.name}")
-    
-    click.echo("所有图片处理完成！")
+    click.echo(", 所有图片处理完成！")
 
 
 @click.group()
@@ -170,7 +169,7 @@ def capture(dir: str,times: int) -> None:
 @cli.command()
 @click.option("--dir", "-d",required=True, help="图片目录路径")
 @click.option("--celery", "-c", is_flag=True, help="使用 Celery 处理（需要启动 worker）")
-def process(dir: str, celery: bool) -> None:
+def ocr(dir: str, celery: bool) -> None:
     """处理截图目录中的图片，进行 OCR 识别"""
     image_dir = Path(dir)
     
@@ -186,6 +185,7 @@ def process(dir: str, celery: bool) -> None:
     else:
         # 直接处理
         click.echo("初始化 OCR 引擎...")
+        from paddleocr import PaddleOCR
         ocr = PaddleOCR(
             use_doc_orientation_classify=False,
             use_doc_unwarping=False,
