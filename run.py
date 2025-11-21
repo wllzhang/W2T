@@ -7,13 +7,16 @@ from __future__ import annotations
 import sys
 import time
 import atexit
+import asyncio
+import threading
 from pathlib import Path
 from typing import List, Sequence
 from types import SimpleNamespace
 
 import yaml
 import click
-
+import requests
+import aiohttp
 import cv2
 import numpy as np
 from paddleocr import PaddleOCR
@@ -208,14 +211,101 @@ def mergetxt(dir: str) -> None:
         Path(dir).glob("*.txt"),
         key=lambda p: int(p.stem) if p.stem.isdigit()  else 0
     )
-    with open(Path(dir) / "merged.txt", "w", encoding="utf-8") as m_f:
+    save_file = Path(dir) / "merged.txt"
+    with open(save_file, "w", encoding="utf-8") as m_f:
         for txt_file in txt_files:
             with open(txt_file, "r", encoding="utf-8") as t_f:
                 m_f.write(t_f.read())
                 m_f.write("\n")
-    click.echo(f"合并完成！结果已保存到: {Path(dir) / 'merged.txt'}")
+    click.echo(f"合并完成！结果已保存到: {save_file}")
+    # 自动翻译合并后的文件
+    translate_file(str(save_file), 10)
 
+async def translate_lines_async(lines: List[str], max_concurrent: int = 10, 
+                                progress_callback=None) -> List[str]:
+    """使用协程并发翻译多行文本"""
+    semaphore = asyncio.Semaphore(max_concurrent)  # 限制并发数，避免过多请求
+    
+    async def translate_line(session: aiohttp.ClientSession, line: str) -> str:
+        """异步翻译单行文本"""
+        async with semaphore:  # 限制并发数
+            try:
+                async with session.post(
+                    "https://api.deeplx.org/xxk7RND_15cVQlxL0aMo-3cNUEVNX0GoMY-rZcy3nDY/translate",
+                    json={"text": line, "target_lang": "EN", "source_lang": "ZH"},
+                    timeout=aiohttp.ClientTimeout(total=30)
+                ) as response:
+                    result = await response.json()
+                    if progress_callback:
+                        progress_callback()
+                    return result.get('data', line)  # 如果失败，返回原文
+            except Exception as e:
+                click.echo(f"\n翻译错误: {e}", err=True)
+                if progress_callback:
+                    progress_callback()
+                return line  # 出错时返回原文
+    
+    async with aiohttp.ClientSession() as session:
+        tasks = [translate_line(session, line) for line in lines]
+        results = await asyncio.gather(*tasks)
+        return results
+
+
+def translate_file(file: str, concurrent: int = 10) -> None:
+    """翻译文件的核心逻辑（可被其他函数调用）"""
+    file_path = Path(file)
+    if not file_path.exists():
+        click.echo(f"文件不存在: {file}", err=True)
+        return
+    
+    save_file = file.replace(".txt", "_en.txt")
+    
+    # 读取所有行
+    click.echo("读取文件...")
+    with open(file, "r", encoding="utf-8") as f:
+        lines = f.readlines()
+    
+    # 预处理：清理空行和格式化
+    processed_lines = [line for line in lines if line.strip()]
+    if not processed_lines:
+        click.echo("文件中没有可翻译的内容", err=True)
+        return
+    
+    click.echo(f"找到 {len(processed_lines)} 行需要翻译，开始翻译（并发数: {concurrent}）...")
+    
+    # 使用 click.progressbar 显示进度
+    with click.progressbar(length=len(processed_lines), label="翻译中...", show_percent=True) as bar:
+        progress_lock = threading.Lock()
+        
+        def update_progress():
+            """线程安全的进度更新"""
+            with progress_lock:
+                bar.update(1)
+        
+        # 创建异步任务
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        try:
+            results = loop.run_until_complete(translate_lines_async(processed_lines, concurrent, update_progress))
+        finally:
+            loop.close()
+    
+    # 保存结果
+    with open(save_file, "w", encoding="utf-8") as f:
+        for result in results:
+            if result.strip() == "":
+                continue
+            f.write(result)
+    
+    click.echo(f"\n翻译完成！结果已保存到: {save_file}")
+
+
+@cli.command()
+@click.option("--file", "-f", required=True, help="txt文件路径")
+@click.option("--concurrent", "-c", default=10, help="并发数（默认10）")
+def translate(file: str, concurrent: int) -> None:
+    """使用协程并发翻译文本文件"""
+    translate_file(file, concurrent)
 
 if __name__ == "__main__":
     cli()
-

@@ -18,3 +18,4 @@ matplotlib
 torch
 torchvision
 pillow
+aiohttp
