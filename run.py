@@ -147,7 +147,8 @@ def cli() -> None:
 
 @cli.command()
 @click.option("--dir", "-d", required=True, help="截图保存目录")
-def capture(dir: str) -> None:
+@click.option("--times", "-t", default=0, help="截图次数")
+def capture(dir: str,times: int) -> None:
     """开始截图，持续保存截图到指定目录"""
     try:
         click.echo("进入框选模式...")
@@ -158,7 +159,7 @@ def capture(dir: str) -> None:
         action_executor = ActionExecutor(screen_capture)
         producer = ProducerApp(screen_capture, action_executor, save_dir=dir)
         click.echo("开始截图，按 Ctrl+C 停止...")
-        producer.run_forever(interval_ms=_settings.capture.min_interval_ms)
+        producer.run_forever(interval_ms=_settings.capture.min_interval_ms,times=times)
     except KeyboardInterrupt:
         click.echo("\n截图已停止")
     except Exception as e:

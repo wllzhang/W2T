@@ -36,9 +36,9 @@ class ProducerApp:
         self.image_counter = 0
         self.counter_lock = threading.Lock()
 
-    def run_forever(self, interval_ms: int = 500) -> None:
+    def run_forever(self, interval_ms: int = 500,times: int = 0) -> None:
         interval = interval_ms / 1000.0
-        
+        _is_times = times > 0
         
         
         while True:
@@ -47,8 +47,14 @@ class ProducerApp:
                 image_num = self.image_counter
             image_path = self.save_dir / f"{image_num}.jpg"
             self.run_once(image_path)
-            if self.stop(image_path):
-                break
+            if _is_times:
+                times -= 1
+                if times == 0:
+                    break
+                
+            else:
+                if self.stop(image_path):
+                    break
             time.sleep(interval)
 
     def run_once(self,image_path: str | Path) -> None:
@@ -90,13 +96,14 @@ class ProducerApp:
             return False
 
 @click.command()
-def main() -> None:
+@click.option("--times", "-t", default=0, help="截图次数")
+def main(times: int) -> None:
     click.echo("进入框选模式...")
     parsed_bbox = select_bbox()
     screen_capture = ScreenCapture(parsed_bbox)
     action_executor = ActionExecutor(screen_capture)
     producer = ProducerApp(screen_capture, action_executor)
-    producer.run_forever(interval_ms=_settings.capture.min_interval_ms)
+    producer.run_forever(interval_ms=_settings.capture.min_interval_ms,times=times)
 
 
 if __name__ == "__main__":
