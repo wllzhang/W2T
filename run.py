@@ -115,16 +115,18 @@ def process_images_direct(image_dir: Path, ocr) -> None:
     )
     
     click.echo(f"找到 {len(image_files)} 张图片，开始处理...")
-    with click.progressbar(image_files, label="处理中...", show_percent=True) as bar:
+    with click.progressbar(image_files, 
+                            label=f"处理中..." ,
+                            item_show_func=lambda a: f"处理中: {a}..." if a else "",
+                            show_pos = True,
+                            color =True,
+                            info_sep = ' , ') as bar:
         for image_path in bar:
             try:
                 image_num = int(image_path.stem)
             except ValueError:
                 click.echo(f", 跳过无效文件名: {image_path}")
                 continue
-            
-            click.echo(f", 处理中: {image_path.name}...", nl=False)
-            
             # 直接处理
             ocr_text = process_image_direct(image_path, ocr)
             
@@ -132,10 +134,8 @@ def process_images_direct(image_dir: Path, ocr) -> None:
             text_file = image_dir / f"{image_num}.txt"
             with open(text_file, "w", encoding="utf-8") as f:
                 f.write(ocr_text or "")
-            
-            click.echo(f", 完成 -> {text_file.name}")
     
-    click.echo(", 所有图片处理完成！")
+    click.echo("所有图片处理完成！")
 
 
 @click.group()
